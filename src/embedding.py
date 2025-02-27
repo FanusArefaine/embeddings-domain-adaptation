@@ -24,7 +24,7 @@ def embed_texts(embedder, texts, do_normalize=False):
     Returns:
         np.ndarray of shape (len(texts), embedding_dim)
     """
-    embeddings = embedder.encode(texts, show_progress_bar=True, convert_to_numpy=True)
+    embeddings = embedder.encode(texts, show_progress_bar=False, convert_to_numpy=True)
     embeddings = embeddings.astype('float32')
     if do_normalize:
         faiss.normalize_L2(embeddings)
