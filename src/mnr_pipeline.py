@@ -25,20 +25,8 @@ def run_mnr_experiment(cfg: Config):
      4) Evaluate retrieval on test set with the new fine-tuned model.
     """
 
-    # 1) Load the entire dataset (14k) after filtering
-    train_df = load_training_data(cfg)
-    print(f"Total loaded (filtered) records: {len(train_df)}")
-
-    # # 2) Split into train + test
-    # train_df, test_df = train_test_split_pubmedqa(full_df, test_size=cfg.TEST_SIZE)
-    # print(f"Train size: {len(train_df)} | Test size: {len(test_df)}")
-
-    # 3) Build MNR samples and fine-tune
-    train_samples = build_mnr_samples(train_df)
-    print(f"MNR training samples: {len(train_samples)}")
-
     # fine-tune the model (returns a SentenceTransformer)
-    finetuned_model = mnr_loss_finetuning(cfg, train_samples)
+    finetuned_model = mnr_loss_finetuning(cfg)
     print("Finished fine-tuning MNR model.")
 
     # 4) Evaluate on the test set
