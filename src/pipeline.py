@@ -2,7 +2,7 @@
 
 import numpy as np
 from src.config import Config
-from src.data import load_test_split, get_questions_and_context_docs
+from src.data import load_testing_data, get_questions_and_context_docs
 from src.embedding import build_embedder, embed_texts
 from src.retrieval import build_faiss_index, search_top_k
 from src.evaluation import compute_average_precision, compute_recall_at_k, compute_mrr
@@ -18,7 +18,7 @@ def run_experiment(cfg: Config):
     6) Print final average metrics
     """
     # 1) Load testing data split
-    df = load_test_split(cfg)
+    df = load_testing_data(cfg)
     print(f"Testing data size: {len(df)}")
 
     # Rest of the code remains the same
@@ -71,3 +71,8 @@ def run_experiment(cfg: Config):
     print(f"mAP: {mAP:.4f}")
     print(f"Recall@{cfg.TOP_K}: {mean_recall:.4f}")
     print(f"MRR: {mean_mrr:.4f}")
+
+
+# Call the function with the default config
+cfg = Config()
+run_experiment(cfg)

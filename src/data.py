@@ -106,7 +106,9 @@ def train_test_split_pubmedqa(full_df, test_size=2000, random_seed=42):
 
     return train_df, test_df
 
-def load_test_split(cfg):
+
+
+def load_testing_data(cfg):
     """Loads a pre-saved train or test split from a pickle file."""
     
     # Check if the file exists in cfg.TEST_SPLIT_PATH, load it if it does, otherwise create it using load_and_filter_data
@@ -119,6 +121,15 @@ def load_test_split(cfg):
         with open(cfg.TEST_SPLIT_PATH, 'wb') as f:
             pickle.dump(df, f)
         return df
+
+
+def load_training_data(cfg):
+    """Loads a pre-saved train split from a pickle file."""
+    
+    if not os.path.exists(cfg.TRAIN_SPLIT_PATH):
+        raise FileNotFoundError(f"Train split not found at {cfg.TRAIN_SPLIT_PATH}")
+    with open(cfg.TRAIN_SPLIT_PATH, 'rb') as f:
+        return pickle.load(f)
     
 def build_mnr_samples(train_df):
     """
@@ -128,8 +139,8 @@ def build_mnr_samples(train_df):
     Actually, for PubMedQA, all 3 might be from the same pubid, so we treat them as positives?
 
     But typically you'd do:
-      question => context snippet #1 as the "positive" pair
-      question => context snippet #2, #3 might also be positive if they are correct?
+      question => context snippet #1, #2, #3 as the "positive" pairs
+      
 
     If you have a single correct snippet, you just do (question, snippet).
 
