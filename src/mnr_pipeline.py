@@ -7,7 +7,6 @@ from src.data import (
     load_and_filter_data,
     train_test_split_pubmedqa,
     get_questions_and_context_docs,
-    build_mnr_samples,
     load_training_data,
     load_testing_data
 )
