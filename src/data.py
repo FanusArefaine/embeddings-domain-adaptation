@@ -1,10 +1,15 @@
 # src/data.py
 import os 
 import pickle 
+import sys
 import pandas as pd
 from datasets import load_dataset
 from sentence_transformers import InputExample
+from src.config import Config
+import datasets
 
+
+sys.path.append('../')
 
 def load_and_filter_data(cfg):
     """
@@ -73,6 +78,10 @@ def get_questions_and_context_docs(cfg, df: pd.DataFrame):
                 'text': snippet
             })
             
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(cfg.TEST_CONTEXTS_PATH), exist_ok=True)
+    os.makedirs(os.path.dirname(cfg.TEST_QUESTIONS_PATH), exist_ok=True)
+            
     # save test all_context_docs and questions_data to pickle file (processsed)
     with open(cfg.TEST_CONTEXTS_PATH, 'wb') as f:
         pickle.dump(all_context_docs, f)
@@ -84,25 +93,46 @@ def get_questions_and_context_docs(cfg, df: pd.DataFrame):
 
 
   
-def train_test_split_pubmedqa(full_df, test_size=2000, random_seed=42):
+def train_test_split_pubmedqa(cfg, random_seed=42):
     """
     Splits the entire PubMedQA DataFrame into train_df and test_df.
     We sample `test_size` rows for testing, the rest is training.
-    
+    Saves the splits to files and loads them if they exist.
+
     Args:
-        full_df (pd.DataFrame): Contains all 14k questions
-        test_size (int): number of rows to set aside for test
-        random_seed (int): for reproducibility
-    
+        cfg: Configuration object
+        random_seed: Random seed for reproducibility
+
     Returns:
         train_df, test_df (pd.DataFrame, pd.DataFrame)
     """
-    if len(full_df) <= test_size:
-        raise ValueError("Not enough data to split!")
+
+    # Check if the split files exist
+    if os.path.exists(cfg.TRAIN_SPLIT_PATH) and os.path.exists(cfg.TEST_SPLIT_PATH):
+        # Load the dataframes from the pickle files
+        train_df = pd.read_pickle(cfg.TRAIN_SPLIT_PATH)
+        test_df = pd.read_pickle(cfg.TEST_SPLIT_PATH)
+        print("Loaded train and test splits from files.")
+        return train_df, test_df
+
+    # Load and filter the dataset
+    filter_df = load_and_filter_data(cfg)
+
+    # Shuffle the DataFrame
+    filter_df = filter_df.sample(frac=1, random_state=random_seed).reset_index(drop=True)
+
+    # Split into train and test (uisng train size and test size)
+    train_df = filter_df.iloc[cfg.TEST_SIZE:]
+    test_df = filter_df.iloc[:cfg.TEST_SIZE]
     
-    test_df = full_df.sample(n=test_size, random_state=random_seed)
-    train_df = full_df.drop(test_df.index).reset_index(drop=True)
-    test_df = test_df.reset_index(drop=True)
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(cfg.TRAIN_SPLIT_PATH), exist_ok=True)
+    os.makedirs(os.path.dirname(cfg.TEST_SPLIT_PATH), exist_ok=True)
+
+    # Save the dataframes to pickle files
+    train_df.to_pickle(cfg.TRAIN_SPLIT_PATH)
+    test_df.to_pickle(cfg.TEST_SPLIT_PATH)
+    print("Saved train and test splits to files.")
 
     return train_df, test_df
 
@@ -117,46 +147,52 @@ def load_testing_data(cfg):
         with open(cfg.TEST_SPLIT_PATH, 'rb') as f:
             return pickle.load(f)
     else:
-        df = load_and_filter_data(cfg)
-        with open(cfg.TEST_SPLIT_PATH, 'wb') as f:
-            pickle.dump(df, f)
-        return df
+        _, test_df = train_test_split_pubmedqa(cfg)
+        return test_df
 
 
 def load_training_data(cfg):
     """Loads a pre-saved train split from a pickle file."""
     
-    if not os.path.exists(cfg.TRAIN_SPLIT_PATH):
-        raise FileNotFoundError(f"Train split not found at {cfg.TRAIN_SPLIT_PATH}")
-    with open(cfg.TRAIN_SPLIT_PATH, 'rb') as f:
-        return pickle.load(f)
+    # Check if the file exists in cfg.TRAIN_SPLIT_PATH, load it if it does, otherwise create it using load_and_filter_data
+    # Return a DataFrame
+    if os.path.exists(cfg.TRAIN_SPLIT_PATH):
+        with open(cfg.TRAIN_SPLIT_PATH, 'rb') as f:
+            return pickle.load(f)
+    else:
+        train_df, _ = train_test_split_pubmedqa(cfg)
+        return train_df
     
-def build_mnr_samples(train_df):
-    """
-    For each row in train_df, we create InputExample(question, correct_context).
-    We assume each row has exactly 3 context snippets, but only 1 is correct for MNR
-    (PubMedQA in your use case might store them differently if all 3 are correct).
-    Actually, for PubMedQA, all 3 might be from the same pubid, so we treat them as positives?
-
-    But typically you'd do:
-      question => context snippet #1, #2, #3 as the "positive" pairs
-      
-
-    If you have a single correct snippet, you just do (question, snippet).
-
-    Returns a list of InputExample
-    """
-    # This example assumes there's only 1 "correct" snippet per question.
-    # If in your data, all 3 are correct for that question, you can create 3 examples per question.
     
-    samples = []
-    for idx, row in train_df.iterrows():
+def build_mnr_dataset(train_df):
+    """
+    Creates a Hugging Face Dataset for MNR fine-tuning.
+    Each row in train_df has (question, context['contexts'], final_decision, etc.).
+    We'll create 3 examples for each row if each snippet is valid.
+    
+    Returns an HF Dataset with columns: ['text1', 'text2', 'label'].
+      - text1 is the question
+      - text2 is the context snippet
+      - label is always 1.0 (since MNR will treat in-batch as negative)
+    """
+
+    text1, text2, labels = [], [], []
+
+    for _, row in train_df.iterrows():
         question = row['question']
-        snippets = row['context']['contexts']  # list of text
-        # In your dataset, all 3 might be relevant. If so, let's create 3 samples:
+        snippets = row['context']['contexts']  # list of 3 text snippets
+        # If all 3 are correct for PubMedQA, we treat each snippet as a positive pair.
         for snippet in snippets:
-            samples.append(InputExample(
-                texts=[question, snippet], 
-                label=1.0  # or None; MNR doesn't strictly need a label
-            ))
-    return samples
+            text1.append(question)
+            text2.append(snippet)
+            labels.append(1.0)  # MNR uses in-batch negatives automatically
+
+    dataset_dict = {
+        'text1': text1,
+        'text2': text2,
+        'label': labels
+    }
+
+    # Convert to a huggingface Dataset
+    mnr_dataset = datasets.Dataset.from_dict(dataset_dict)
+    return mnr_dataset

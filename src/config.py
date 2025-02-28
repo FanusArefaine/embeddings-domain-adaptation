@@ -1,4 +1,5 @@
 import torch
+import os
 
 class Config:
     """
@@ -33,8 +34,16 @@ class Config:
     LOGGING_STEPS = 100
     WARMUP_STEPS = 100
     
-    TRAIN_SPLIT_PATH = "data/raw/pubmedqa_train.pkl"
-    TEST_SPLIT_PATH = "data/raw/pubmedqa_test.pkl"
+  # Define base directory
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Project root
+
+    # Data paths, relative to the project root
+    DATA_DIR = os.path.join(BASE_DIR, "data")
+    RAW_DATA_DIR = os.path.join(DATA_DIR, "raw")
+    PROCESSED_DATA_DIR = os.path.join(DATA_DIR, "processed")
+
+    TRAIN_SPLIT_PATH = os.path.join(RAW_DATA_DIR, "pubmedqa_train.pkl")
+    TEST_SPLIT_PATH = os.path.join(RAW_DATA_DIR, "pubmedqa_test.pkl")
     
-    TEST_CONTEXTS_PATH = "data/processed/test_contexts.pkl"
-    TEST_QUESTIONS_PATH = "data/processed/test_questions.pkl"
+    TEST_CONTEXTS_PATH = os.path.join(PROCESSED_DATA_DIR, "test_contexts.pkl")
+    TEST_QUESTIONS_PATH = os.path.join(PROCESSED_DATA_DIR, "test_questions.pkl")

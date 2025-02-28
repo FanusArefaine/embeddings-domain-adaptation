@@ -7,7 +7,7 @@ from sentence_transformers.trainer import SentenceTransformerTrainer
 from sentence_transformers.training_args import SentenceTransformerTrainingArguments
 
 from src.config import Config
-from src.data import build_mnr_samples, load_training_data
+from src.data import build_mnr_dataset, load_training_data
 import torch
 
 def mnr_loss_finetuning(cfg: Config):
@@ -27,10 +27,10 @@ def mnr_loss_finetuning(cfg: Config):
     
     print(f"Loaded training data: {len(train_df)} rows")
 
-    # 2) Create MNR InputExamples
-    #    Using your existing helper from data.py
-    train_examples = build_mnr_samples(train_df)
-    print(f"Created {len(train_examples)} MNR training samples")
+      # 2) Convert to HF Dataset
+    train_dataset = build_mnr_dataset(train_df)
+    print(f"HF Dataset columns: {train_dataset.column_names}")
+    print(f"Total training examples: {len(train_dataset)}")
 
     # 3) Initialize model + loss
     #    We'll start with the pretrained model from cfg.MODEL_NAME
@@ -56,7 +56,7 @@ def mnr_loss_finetuning(cfg: Config):
     trainer = SentenceTransformerTrainer(
         model=model,
         args=training_args,
-        train_dataset=train_examples,
+        train_dataset=train_dataset,
         loss=train_loss,
         # evaluator=...,  # Optional if you want validation
     )
