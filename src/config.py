@@ -1,3 +1,5 @@
+import torch
+
 class Config:
     """
     Configuration class to store hyperparameters, file paths, model names, etc.
@@ -5,7 +7,7 @@ class Config:
     """
     # Model
     MODEL_NAME = "BAAI/bge-small-en-v1.5"
-    DEVICE = "cuda"  # or 'cpu' if no GPU
+    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"  # or 'cpu' if no GPU
 
     # Data
     DATASET_NAME = "qiaojin/PubMedQA"
@@ -16,9 +18,23 @@ class Config:
     CONTEXT_COUNT = 3
     DECISIONS = ["yes", "no"]
     SAMPLE_SIZE = 2000  # how many records to sample
+    TEST_SIZE = 1000
+    TRAIN_SIZE = 2000
     
     # Embedding
     NORMALIZE = True     # whether to L2-normalize embeddings
     
     # Retrieval
     TOP_K = 3
+    
+    MODELS_OUTPUT_DIR = "models/finetuned_mnr"
+    EPOCHS = 1
+    BATCH_SIZE = 32
+    LOGGING_STEPS = 100
+    WARMUP_STEPS = 100
+    
+    TRAIN_SPLIT_PATH = "data/raw/pubmedqa_train.parquet"
+    TEST_SPLIT_PATH = "data/raw/pubmedqa_test.parquet"
+    
+    TEST_CONTEXTS_PATH = "data/processed/test_contexts.pkl"
+    TEST_QUESTIONS_PATH = "data/processed/test_questions.pkl"

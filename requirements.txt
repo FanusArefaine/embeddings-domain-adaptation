@@ -1,6 +1,6 @@
 datasets
 pandas
 numpy
-sentence-transformers
 torch
+sentence-transformers
 transformers

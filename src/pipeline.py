@@ -2,7 +2,7 @@
 
 import numpy as np
 from src.config import Config
-from src.data import load_and_filter_data, create_documents_and_questions
+from src.data import load_test_split, get_questions_and_context_docs
 from src.embedding import build_embedder, embed_texts
 from src.retrieval import build_faiss_index, search_top_k
 from src.evaluation import compute_average_precision, compute_recall_at_k, compute_mrr
@@ -17,12 +17,13 @@ def run_experiment(cfg: Config):
     5) For each question, retrieve top-k, compute metrics
     6) Print final average metrics
     """
-    # 1) Data
-    df = load_and_filter_data(cfg)
-    print(f"Filtered dataset size: {len(df)}")
+    # 1) Load testing data split
+    df = load_test_split(cfg)
+    print(f"Testing data size: {len(df)}")
 
+    # Rest of the code remains the same
     # 2) Docs & questions
-    all_context_docs, questions_data = create_documents_and_questions(df)
+    all_context_docs, questions_data = get_questions_and_context_docs(cfg, df)
     print(f"Number of questions: {len(questions_data)}")
     print(f"Number of context docs: {len(all_context_docs)}")
 
