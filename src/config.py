@@ -33,8 +33,8 @@ class Config:
     LOGGING_STEPS = 100
     WARMUP_STEPS = 100
     
-    TRAIN_SPLIT_PATH = "data/raw/pubmedqa_train.parquet"
-    TEST_SPLIT_PATH = "data/raw/pubmedqa_test.parquet"
+    TRAIN_SPLIT_PATH = "data/raw/pubmedqa_train.pkl"
+    TEST_SPLIT_PATH = "data/raw/pubmedqa_test.pkl"
     
     TEST_CONTEXTS_PATH = "data/processed/test_contexts.pkl"
     TEST_QUESTIONS_PATH = "data/processed/test_questions.pkl"
