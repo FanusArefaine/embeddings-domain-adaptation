@@ -231,7 +231,7 @@ def build_binary_dataset(train_df, negative_ratio=1):
         for snippet in pos_snippets:
             text1_list.append(question)
             text2_list.append(snippet)
-            labels.append(1.0)  # positive
+            labels.append(1)  # positive
 
             # Sample negative contexts
             for _ in range(negative_ratio):
@@ -242,7 +242,7 @@ def build_binary_dataset(train_df, negative_ratio=1):
                 
                 text1_list.append(question)
                 text2_list.append(neg_snippet)
-                labels.append(0.0)  # negative
+                labels.append(0)  # negative
 
     dataset_dict = {
         'text1': text1_list,
