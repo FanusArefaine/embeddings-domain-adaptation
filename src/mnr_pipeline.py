@@ -11,7 +11,7 @@ from src.data import (
     load_training_data,
     load_testing_data
 )
-from src.fine_tuning import fine_tune_mnr
+from src.finetuning import mnr_loss_finetuning
 from src.embedding import embed_texts
 from src.retrieval import build_faiss_index, search_top_k
 from src.evaluation import compute_average_precision, compute_recall_at_k, compute_mrr
@@ -38,7 +38,7 @@ def run_mnr_experiment(cfg: Config):
     print(f"MNR training samples: {len(train_samples)}")
 
     # fine-tune the model (returns a SentenceTransformer)
-    finetuned_model = fine_tune_mnr(cfg, train_samples)
+    finetuned_model = mnr_loss_finetuning(cfg, train_samples)
     print("Finished fine-tuning MNR model.")
 
     # 4) Evaluate on the test set
