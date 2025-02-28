@@ -70,3 +70,5 @@ def mnr_loss_finetuning(cfg: Config):
     model.save(cfg.MODELS_OUTPUT_DIR)
 
     print("Fine-tuning complete.")
+    
+    return model
