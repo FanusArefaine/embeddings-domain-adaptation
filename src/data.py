@@ -7,7 +7,7 @@ from datasets import load_dataset
 from sentence_transformers import InputExample
 from src.config import Config
 import datasets
-
+import random
 
 sys.path.append('../')
 
@@ -196,3 +196,58 @@ def build_mnr_dataset(train_df):
     # Convert to a huggingface Dataset
     mnr_dataset = datasets.Dataset.from_dict(dataset_dict)
     return mnr_dataset
+
+
+
+
+
+def build_binary_dataset(train_df, negative_ratio=1):
+    """
+    Creates a Hugging Face Dataset of pairs (text1, text2, label)
+    for binary classification or similarity tasks.
+    
+    - We assume each row in train_df has:
+       question, context['contexts'] (one or multiple positives)
+    - We randomly sample `negative_ratio` negative contexts for each positive.
+    
+    Returns an HF Dataset with columns: ['text1', 'text2', 'label'].
+      label=1.0 for positive, label=0.0 for negative
+    """
+    text1_list = []
+    text2_list = []
+    labels = []
+
+    # We'll gather *all* possible contexts in a big list for random sampling as negatives
+    all_contexts = []
+    for _, row in train_df.iterrows():
+        all_contexts.extend(row['context']['contexts'])
+    all_contexts = list(set(all_contexts))  # remove duplicates
+
+    for _, row in train_df.iterrows():
+        question = row['question']
+        pos_snippets = row['context']['contexts']
+
+        # For each snippet, make a positive pair
+        for snippet in pos_snippets:
+            text1_list.append(question)
+            text2_list.append(snippet)
+            labels.append(1.0)  # positive
+
+            # Sample negative contexts
+            for _ in range(negative_ratio):
+                neg_snippet = random.choice(all_contexts)
+                # Make sure not to pick an actual positive
+                while neg_snippet in pos_snippets and len(all_contexts) > len(pos_snippets):
+                    neg_snippet = random.choice(all_contexts)
+                
+                text1_list.append(question)
+                text2_list.append(neg_snippet)
+                labels.append(0.0)  # negative
+
+    dataset_dict = {
+        'text1': text1_list,
+        'text2': text2_list,
+        'label': labels
+    }
+
+    return datasets.Dataset.from_dict(dataset_dict)

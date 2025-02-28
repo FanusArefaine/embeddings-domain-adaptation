@@ -1,47 +1,58 @@
-# src/mnr_pipeline.py
-
 import numpy as np
 
 from src.config import Config
 from src.data import (
-    load_and_filter_data,
-    train_test_split_pubmedqa,
-    get_questions_and_context_docs,
-    load_training_data,
-    load_testing_data
+    load_testing_data,
+    get_questions_and_context_docs
 )
-from src.finetuning import mnr_loss_finetuning
+from src.finetuning import (
+    mnr_loss_finetuning,
+    cosine_loss_finetuning,
+    softmax_loss_finetuning,
+    # if you have more
+)
 from src.embedding import embed_texts
 from src.retrieval import build_faiss_index, search_top_k
 from src.evaluation import compute_average_precision, compute_recall_at_k, compute_mrr
 
-def run_mnr_experiment(cfg: Config):
+def run_finetuning_experiment(cfg: Config, loss_type: str = "mnr"):
     """
-    Runs an MNR-based pipeline analogous to the base pipeline:
-     1) Load entire PubMedQA (filtered to yes/no, 3 contexts)
-     2) Split into train & test
-     3) Build MNR samples & fine-tune model
-     4) Evaluate retrieval on test set with the new fine-tuned model.
-    """
-
-    # fine-tune the model (returns a SentenceTransformer)
-    finetuned_model = mnr_loss_finetuning(cfg)
-    print("Finished fine-tuning MNR model.")
-
-    # 4) Evaluate on the test set
-    #   - Use the same approach as the base pipeline:
-    #   - Create doc & question objects, embed docs, build FAISS index, measure retrieval metrics.
+    A generic pipeline that:
+      1) Fine-tunes a SentenceTransformer using the chosen loss type
+      2) Loads the test set
+      3) Embeds & indexes test docs
+      4) Evaluates retrieval (mAP, Recall@k, MRR)
     
-    # Load test data
-    test_df = load_testing_data(cfg)
-    print(f"Loaded test data: {len(test_df)}")
+    Args:
+        cfg (Config): experiment config
+        loss_type (str): one of ["mnr", "cosine", "softmax"] (or others you define)
+    """
 
-    # Create test contexts & questions
+    # 1) Fine-tune the model
+    if loss_type == "mnr":
+        finetuned_model = mnr_loss_finetuning(cfg)
+        loss_name = "MNR"
+    elif loss_type == "cosine":
+        finetuned_model = cosine_loss_finetuning(cfg)
+        loss_name = "CosineSimilarity"
+    elif loss_type == "softmax":
+        finetuned_model = softmax_loss_finetuning(cfg)
+        loss_name = "Softmax"
+    else:
+        raise ValueError(f"Unknown loss_type: {loss_type}")
+
+    print(f"Finished fine-tuning with {loss_name} loss.")
+
+    # 2) Load test data
+    test_df = load_testing_data(cfg)
+    print(f"Loaded test data: {len(test_df)} rows")
+
+    # 3) Create doc & question objects for the test set
     test_contexts, test_questions = get_questions_and_context_docs(cfg, test_df)
     print(f"Test questions: {len(test_questions)}")
     print(f"Test context docs: {len(test_contexts)}")
 
-    # Embed doc texts with the newly fine-tuned model
+    # Embed doc texts with the newly finetuned model
     doc_texts = [doc['text'] for doc in test_contexts]
     doc_embeddings = embed_texts(finetuned_model, doc_texts, do_normalize=cfg.NORMALIZE)
 
@@ -57,15 +68,13 @@ def run_mnr_experiment(cfg: Config):
         question_text = q_data['question']
         question_pubid = q_data['pubid']
 
-        # Embed the question
         q_emb = embed_texts(finetuned_model, [question_text], do_normalize=cfg.NORMALIZE)
         idxs, _ = search_top_k(gpu_index, q_emb, top_k=cfg.TOP_K, do_normalize=False)
-
         retrieved_indices = idxs[0].tolist()
-        # Relevant indices = all docs that share the same pubid
+
+        # relevant docs = all docs with the same pubid
         relevant_indices = {i for i, pid in enumerate(pubid_map) if pid == question_pubid}
 
-        # Compute metrics
         ap = compute_average_precision(retrieved_indices, relevant_indices)
         recall_k = compute_recall_at_k(retrieved_indices, relevant_indices)
         mrr_val = compute_mrr(retrieved_indices, relevant_indices)
@@ -79,7 +88,7 @@ def run_mnr_experiment(cfg: Config):
     mean_recall = np.mean(all_recall)
     mean_mrr = np.mean(all_mrr)
 
-    print("\nEvaluation on test set with fine-tuned MNR model:")
+    print(f"\nEvaluation on test set with {loss_name} fine-tuned model:")
     print(f"mAP@{cfg.TOP_K}: {mAP:.4f}")
     print(f"Recall@{cfg.TOP_K}: {mean_recall:.4f}")
     print(f"MRR@{cfg.TOP_K}: {mean_mrr:.4f}")
