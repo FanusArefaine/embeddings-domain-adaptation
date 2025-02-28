@@ -1,4 +1,5 @@
 # src/mnr_pipeline.py
+
 import numpy as np
 
 from src.config import Config
@@ -6,9 +7,11 @@ from src.data import (
     load_and_filter_data,
     train_test_split_pubmedqa,
     get_questions_and_context_docs,
-    build_mnr_samples
+    build_mnr_samples,
+    load_training_data,
+    load_testing_data
 )
-from src.finetuning import mnr_loss_finetuning
+from src.fine_tuning import fine_tune_mnr
 from src.embedding import embed_texts
 from src.retrieval import build_faiss_index, search_top_k
 from src.evaluation import compute_average_precision, compute_recall_at_k, compute_mrr
@@ -23,24 +26,28 @@ def run_mnr_experiment(cfg: Config):
     """
 
     # 1) Load the entire dataset (14k) after filtering
-    full_df = load_and_filter_data(cfg)
-    print(f"Total loaded (filtered) records: {len(full_df)}")
+    train_df = load_training_data(cfg)
+    print(f"Total loaded (filtered) records: {len(train_df)}")
 
-    # 2) Split into train + test
-    train_df, test_df = train_test_split_pubmedqa(full_df, test_size=cfg.TEST_SIZE)
-    print(f"Train size: {len(train_df)} | Test size: {len(test_df)}")
+    # # 2) Split into train + test
+    # train_df, test_df = train_test_split_pubmedqa(full_df, test_size=cfg.TEST_SIZE)
+    # print(f"Train size: {len(train_df)} | Test size: {len(test_df)}")
 
     # 3) Build MNR samples and fine-tune
     train_samples = build_mnr_samples(train_df)
     print(f"MNR training samples: {len(train_samples)}")
 
     # fine-tune the model (returns a SentenceTransformer)
-    finetuned_model = mnr_loss_finetuning(cfg, train_samples)
+    finetuned_model = fine_tune_mnr(cfg, train_samples)
     print("Finished fine-tuning MNR model.")
 
     # 4) Evaluate on the test set
     #   - Use the same approach as the base pipeline:
     #   - Create doc & question objects, embed docs, build FAISS index, measure retrieval metrics.
+    
+    # Load test data
+    test_df = load_testing_data(cfg)
+    print(f"Loaded test data: {len(test_df)}")
 
     # Create test contexts & questions
     test_contexts, test_questions = get_questions_and_context_docs(cfg, test_df)
