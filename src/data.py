@@ -296,8 +296,8 @@ def build_mnr_dataset(train_df):
             labels.append(1.0)  # MNR uses in-batch negatives automatically
 
     dataset_dict = {
-        'text1': text1,
-        'text2': text2,
+        'sentences1': text1,
+        'sentences2': text2,
         'label': labels
     }
 
@@ -309,7 +309,7 @@ def build_mnr_dataset(train_df):
 
 
 
-def build_binary_dataset(train_df, negative_ratio=1):
+def build_binary_dataset(train_df, negative_ratio=3, loss='softmax'):
     """
     Creates a Hugging Face Dataset of pairs (text1, text2, label)
     for binary classification or similarity tasks.
@@ -339,7 +339,10 @@ def build_binary_dataset(train_df, negative_ratio=1):
         for snippet in pos_snippets:
             text1_list.append(question)
             text2_list.append(snippet)
-            labels.append(1)  # positive
+            if loss == 'softmax':
+                labels.append(1)  # positive
+            else:
+                labels.append(1.0)
 
             # Sample negative contexts
             for _ in range(negative_ratio):
@@ -350,11 +353,15 @@ def build_binary_dataset(train_df, negative_ratio=1):
                 
                 text1_list.append(question)
                 text2_list.append(neg_snippet)
-                labels.append(0)  # negative
+                if loss == 'softmax':
+                    labels.append(0)  # negative
+                else:
+                    labels.append(0.0)
+                
 
     dataset_dict = {
-        'text1': text1_list,
-        'text2': text2_list,
+        'sentences1': text1_list,
+        'sentences2': text2_list,
         'label': labels
     }
 

@@ -45,7 +45,7 @@ def mnr_loss_finetuning(cfg: Config):
         per_device_eval_batch_size=cfg.BATCH_SIZE,
         warmup_steps=cfg.WARMUP_STEPS,
         fp16=torch.cuda.is_available(),  # use FP16 if on GPU
-        eval_steps=None,                 # if you have no evaluator right now
+        eval_steps=100,                 # if you have no evaluator right now
         logging_steps=cfg.LOGGING_STEPS,
         save_steps=0,                    # we'll save at the end
         save_total_limit=1,             # keep only 1 checkpoint
@@ -92,7 +92,7 @@ def cosine_loss_finetuning(cfg: Config):
     print(f"Loaded training data: {len(train_df)} rows")
 
     # 2) Build dataset
-    train_dataset = build_binary_dataset(train_df, negative_ratio=1)
+    train_dataset = build_binary_dataset(train_df, negative_ratio=3, loss="cosine")
     print(f"HF Dataset columns: {train_dataset.column_names}")
     print(f"Total training examples: {len(train_dataset)}")
 
@@ -111,6 +111,7 @@ def cosine_loss_finetuning(cfg: Config):
         logging_steps=cfg.LOGGING_STEPS,
         save_steps=0,
         save_total_limit=1,
+        eval_steps=100,
     )
 
     trainer = SentenceTransformerTrainer(
@@ -148,7 +149,7 @@ def softmax_loss_finetuning(cfg: Config):
     print(f"Loaded training data: {len(train_df)} rows")
 
     # same dataset with [text1, text2, label], but label is 0 or 1 for classes
-    train_dataset = build_binary_dataset(train_df, negative_ratio=1)
+    train_dataset = build_binary_dataset(train_df, negative_ratio=3, loss="softmax")
     print(f"HF Dataset columns: {train_dataset.column_names}")
     print(f"Total training examples: {len(train_dataset)}")
 
@@ -170,6 +171,7 @@ def softmax_loss_finetuning(cfg: Config):
         logging_steps=cfg.LOGGING_STEPS,
         save_steps=0,
         save_total_limit=1,
+        eval_steps=100,
     )
 
     trainer = SentenceTransformerTrainer(
