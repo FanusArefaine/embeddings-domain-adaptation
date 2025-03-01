@@ -400,6 +400,11 @@ def build_tsdae_dataset(cfg):
         contexts = row['context']['contexts']
         all_sentences.append(question + " . " + " . ".join(contexts))
         
+    # shuffle and sample about 5000 sentences
+    random.seed(42)
+    random.shuffle(all_sentences)
+    all_sentences = all_sentences[:5000]
+        
     
     # Generate damaged sentences
     damaged_sentences = DenoisingAutoEncoderDataset(list(set(all_sentences)))
