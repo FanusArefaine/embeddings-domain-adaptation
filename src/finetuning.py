@@ -220,6 +220,10 @@ def tsdae_finetuning(cfg: Config):
     from sentence_transformers.trainer import SentenceTransformerTrainer
     from sentence_transformers.training_args import SentenceTransformerTrainingArguments
     import torch
+    
+    import nltk
+    nltk.download('punkt')
+    nltk.download('punkt_tab')
 
     # 1) Build TSDAE dataset
     tsdae_dataset = build_tsdae_dataset(cfg)
