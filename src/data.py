@@ -366,3 +366,58 @@ def build_binary_dataset(train_df, negative_ratio=3, loss='softmax'):
     }
 
     return datasets.Dataset.from_dict(dataset_dict)
+
+
+# Build TSDAE training dataset,  
+# 1st, load and filter dataset
+# 2nd, concatenate a question with its contexts
+# concatenate all questions and contexts into a list of sentences
+
+def build_tsdae_dataset(cfg):
+    
+    
+    # Check if the file exists in cfg.TSDAE_TRAIN_PATH, load it if it does, otherwise create it using DenoisingAutoEncoderDataset
+    # Return a HF Dataset
+    
+    if os.path.exists(cfg.TSDAE_TRAIN_PATH):
+        with open(cfg.TSDAE_TRAIN_PATH, 'rb') as f:
+            return pickle.load(f)
+        
+    
+    from sentence_transformers.datasets import DenoisingAutoEncoderDataset
+
+    df = load_and_filter_data(cfg)
+    
+    
+    # concatenate each question with its contexts with a period
+    
+    all_sentences = []
+    for _, row in df.iterrows():
+        question = row['question']
+        contexts = row['context']['contexts']
+        all_sentences.append(question + " . " + " . ".join(contexts))
+        
+    
+    # Generate damaged sentences
+    damaged_sentences = DenoisingAutoEncoderDataset(list(set(all_sentences)))
+    
+    # Train dataset dict 
+    
+    dataset_dict = {
+        "damaged_sentences": [],
+        "original_sentences": []
+    }
+    
+    for sentence in damaged_sentences:
+        dataset_dict["damaged_sentences"].append(sentence.texts[0])
+        dataset_dict["original_sentences"].append(sentence.texts[1])
+        
+    # Convert to a huggingface Dataset
+    tsdae_dataset = datasets.Dataset.from_dict(dataset_dict)
+    
+    # save it in cfg.TSDAE_TRAIN_PATH
+    os.makedirs(os.path.dirname(cfg.TSDAE_TRAIN_PATH), exist_ok=True)
+    tsdae_dataset.to_pickle(cfg.TSDAE_TRAIN_PATH)
+    print(f"Saved TSDAE training data to {cfg.TSDAE_TRAIN_PATH}")
+    
+    return tsdae_dataset

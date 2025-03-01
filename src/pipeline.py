@@ -71,8 +71,3 @@ def run_experiment(cfg: Config):
     print(f"mAP: {mAP:.4f}")
     print(f"Recall@{cfg.TOP_K}: {mean_recall:.4f}")
     print(f"MRR: {mean_mrr:.4f}")
-
-
-# Call the function with the default config
-cfg = Config()
-run_experiment(cfg)

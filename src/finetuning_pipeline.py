@@ -9,13 +9,13 @@ from src.finetuning import (
     mnr_loss_finetuning,
     cosine_loss_finetuning,
     softmax_loss_finetuning,
-    # if you have more
+    tsdae_finetuning
 )
 from src.embedding import embed_texts
 from src.retrieval import build_faiss_index, search_top_k
 from src.evaluation import compute_average_precision, compute_recall_at_k, compute_mrr
 
-def run_finetuning_experiment(cfg: Config, loss_type: str = "mnr"):
+def run_finetuning_experiment(cfg: Config, type: str = "mnr"):
     """
     A generic pipeline that:
       1) Fine-tunes a SentenceTransformer using the chosen loss type
@@ -25,23 +25,32 @@ def run_finetuning_experiment(cfg: Config, loss_type: str = "mnr"):
     
     Args:
         cfg (Config): experiment config
-        loss_type (str): one of ["mnr", "cosine", "softmax"] (or others you define)
+        type (str): one of ["mnr", "cosine", "softmax"] (or others you define)
     """
 
     # 1) Fine-tune the model
-    if loss_type == "mnr":
+    if type == "mnr":
         finetuned_model = mnr_loss_finetuning(cfg)
         loss_name = "MNR"
-    elif loss_type == "cosine":
+    elif type == "cosine":
         finetuned_model = cosine_loss_finetuning(cfg)
         loss_name = "CosineSimilarity"
-    elif loss_type == "softmax":
+    elif type == "softmax":
         finetuned_model = softmax_loss_finetuning(cfg)
         loss_name = "Softmax"
+    elif type == "tsdae":
+        finetuned_model = tsdae_finetuning(cfg)
+        loss_name = "TSDAE"
+    elif type == "tsdae_plus":
+        domain_finetuned_model = tsdae_finetuning(cfg)
+        finetuned_model = mnr_loss_finetuning(cfg, domain_finetuned_model)
+        loss_name = "TSDAE + MNR"
+        
+    
     else:
-        raise ValueError(f"Unknown loss_type: {loss_type}")
+        raise ValueError(f"Unknown type: {type}")
 
-    print(f"Finished fine-tuning with {loss_name} loss.")
+    print(f"Finished fine-tuning with {loss_name} finetuning.")
 
     # 2) Load test data
     test_df = load_testing_data(cfg)

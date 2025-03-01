@@ -46,6 +46,7 @@ class Config:
     TRAIN_SPLIT_PATH = os.path.join(RAW_DATA_DIR, "pubmedqa_train.pkl")
     TEST_SPLIT_PATH = os.path.join(RAW_DATA_DIR, "pubmedqa_test.pkl")
     VAL_SPLIT_PATH = os.path.join(RAW_DATA_DIR, "pubmedqa_val.pkl")
+    TSDAE_TRAIN_PATH = os.path.join(PROCESSED_DATA_DIR, "tsdae_train.pkl")
     
     TEST_CONTEXTS_PATH = os.path.join(PROCESSED_DATA_DIR, "test_contexts.pkl")
     TEST_QUESTIONS_PATH = os.path.join(PROCESSED_DATA_DIR, "test_questions.pkl")
