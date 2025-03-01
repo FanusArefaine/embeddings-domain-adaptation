@@ -7,7 +7,7 @@ from sentence_transformers.trainer import SentenceTransformerTrainer
 from sentence_transformers.training_args import SentenceTransformerTrainingArguments
 
 from src.config import Config
-from src.data import build_mnr_dataset, load_training_data
+from src.data import build_mnr_dataset, load_training_data, get_similarity_evaluator
 import torch
 
 def mnr_loss_finetuning(cfg: Config):
@@ -58,7 +58,7 @@ def mnr_loss_finetuning(cfg: Config):
         args=training_args,
         train_dataset=train_dataset,
         loss=train_loss,
-        # evaluator=...,  # Optional if you want validation
+        evaluator = get_similarity_evaluator(cfg)
     )
 
     # 5) Train
@@ -117,7 +117,9 @@ def cosine_loss_finetuning(cfg: Config):
         model=model,
         args=training_args,
         train_dataset=train_dataset,
-        loss=train_loss
+        loss=train_loss,
+        evaluator = get_similarity_evaluator(cfg)
+        
     )
 
     # 4) Train
@@ -174,7 +176,8 @@ def softmax_loss_finetuning(cfg: Config):
         model=model,
         args=training_args,
         train_dataset=train_dataset,
-        loss=train_loss
+        loss=train_loss,
+        evaluator = get_similarity_evaluator(cfg)
     )
 
     trainer.train()

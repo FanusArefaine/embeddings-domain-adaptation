@@ -93,49 +93,58 @@ def get_questions_and_context_docs(cfg, df: pd.DataFrame):
 
 
   
-def train_test_split_pubmedqa(cfg, random_seed=42):
+
+def train_val_test_split_pubmedqa(cfg, random_seed=42):
     """
-    Splits the entire PubMedQA DataFrame into train_df and test_df.
-    We sample `test_size` rows for testing, the rest is training.
-    Saves the splits to files and loads them if they exist.
+    Splits the PubMedQA DataFrame into train, val, and test sets:
+      - train: cfg.TRAIN_SIZE
+      - val:   cfg.VAL_SIZE
+      - test:  cfg.TEST_SIZE
 
-    Args:
-        cfg: Configuration object
-        random_seed: Random seed for reproducibility
-
-    Returns:
-        train_df, test_df (pd.DataFrame, pd.DataFrame)
+    Saves the splits to files if not already present, and returns them.
     """
-
-    # Check if the split files exist
-    if os.path.exists(cfg.TRAIN_SPLIT_PATH) and os.path.exists(cfg.TEST_SPLIT_PATH):
-        # Load the dataframes from the pickle files
+    # 1) Check if the split files exist
+    if (
+        os.path.exists(cfg.TRAIN_SPLIT_PATH)
+        and os.path.exists(cfg.VAL_SPLIT_PATH)
+        and os.path.exists(cfg.TEST_SPLIT_PATH)
+    ):
         train_df = pd.read_pickle(cfg.TRAIN_SPLIT_PATH)
+        val_df = pd.read_pickle(cfg.VAL_SPLIT_PATH)
         test_df = pd.read_pickle(cfg.TEST_SPLIT_PATH)
-        print("Loaded train and test splits from files.")
-        return train_df, test_df
+        print("Loaded train/val/test splits from files.")
+        return train_df, val_df, test_df
 
-    # Load and filter the dataset
-    filter_df = load_and_filter_data(cfg)
+    # 2) Load and shuffle data
+    df = load_and_filter_data(cfg)
+    df = df.sample(frac=1, random_state=random_seed).reset_index(drop=True)
 
-    # Shuffle the DataFrame
-    filter_df = filter_df.sample(frac=1, random_state=random_seed).reset_index(drop=True)
+    # 3) Ensure we have enough rows
+    total_required = cfg.TRAIN_SIZE + cfg.VAL_SIZE + cfg.TEST_SIZE
+    if len(df) < total_required:
+        raise ValueError(
+            f"Not enough data rows: need {total_required}, found {len(df)}."
+        )
 
-    # Split into train and test (uisng train size and test size)
-    train_df = filter_df.iloc[cfg.TEST_SIZE:]
-    test_df = filter_df.iloc[:cfg.TEST_SIZE]
-    
-    # Ensure directory exists
+    # 4) Slice out exactly what we need
+    train_df = df.iloc[: cfg.TRAIN_SIZE]
+    val_df = df.iloc[cfg.TRAIN_SIZE : cfg.TRAIN_SIZE + cfg.VAL_SIZE]
+    test_df = df.iloc[
+        cfg.TRAIN_SIZE + cfg.VAL_SIZE : cfg.TRAIN_SIZE + cfg.VAL_SIZE + cfg.TEST_SIZE
+    ]
+
+    # 5) Ensure directories exist
     os.makedirs(os.path.dirname(cfg.TRAIN_SPLIT_PATH), exist_ok=True)
+    os.makedirs(os.path.dirname(cfg.VAL_SPLIT_PATH), exist_ok=True)
     os.makedirs(os.path.dirname(cfg.TEST_SPLIT_PATH), exist_ok=True)
 
-    # Save the dataframes to pickle files
+    # 6) Save splits
     train_df.to_pickle(cfg.TRAIN_SPLIT_PATH)
+    val_df.to_pickle(cfg.VAL_SPLIT_PATH)
     test_df.to_pickle(cfg.TEST_SPLIT_PATH)
-    print("Saved train and test splits to files.")
+    print("Saved train, val, and test splits to files.")
 
-    return train_df, test_df
-
+    return train_df, val_df, test_df
 
 
 def load_testing_data(cfg):
@@ -147,7 +156,7 @@ def load_testing_data(cfg):
         with open(cfg.TEST_SPLIT_PATH, 'rb') as f:
             return pickle.load(f)
     else:
-        _, test_df = train_test_split_pubmedqa(cfg)
+        _, _, test_df = train_val_test_split_pubmedqa(cfg)
         return test_df
 
 
@@ -160,10 +169,109 @@ def load_training_data(cfg):
         with open(cfg.TRAIN_SPLIT_PATH, 'rb') as f:
             return pickle.load(f)
     else:
-        train_df, _ = train_test_split_pubmedqa(cfg)
+        train_df, _, _ = train_val_test_split_pubmedqa(cfg)
         return train_df
     
+def load_validation_data(cfg):
+    """Loads a pre-saved val split from a pickle file."""
     
+
+    # Check if the file exists in cfg.VAL_SPLIT_PATH, load it if it does, otherwise create it using load_and_filter_data
+    # Return a DataFrame
+    if os.path.exists(cfg.VAL_SPLIT_PATH):
+        with open(cfg.VAL_SPLIT_PATH, 'rb') as f:
+            return pickle.load(f)
+    else:
+        _, val_df, _ = train_val_test_split_pubmedqa(cfg)
+        return val_df
+    
+
+
+def prepare_evaluation_data(cfg, negative_ratio=1):
+    """
+    Prepares an evaluation dataset (question, context, score) like STS-B:
+      - Positive pairs: (question, snippet) with score=1
+      - Negative pairs: (question, random snippet from another row) with score=0
+    Saves the final DataFrame to cfg.EVAL_DATA_PATH.
+    """
+    from .data import load_validation_data
+    import random
+
+    # 1) Load validation split
+    val_df = load_validation_data(cfg)
+
+    # 2) Gather all snippets for random negatives
+    all_contexts = []
+    for _, row in val_df.iterrows():
+        all_contexts.extend(row["context"]["contexts"])
+    all_contexts = list(set(all_contexts))  # remove duplicates
+
+    # 3) Build the evaluation pairs
+    sentences1, sentences2, scores = [], [], []
+    for _, row in val_df.iterrows():
+        question = row["question"]
+        pos_snippets = row["context"]["contexts"]
+
+        # Positive pairs
+        for snippet in pos_snippets:
+            sentences1.append(question)
+            sentences2.append(snippet)
+            scores.append(1.0)
+
+            # Negative pairs
+            for _ in range(negative_ratio):
+                neg_snippet = random.choice(all_contexts)
+                while neg_snippet in pos_snippets and len(all_contexts) > len(pos_snippets):
+                    neg_snippet = random.choice(all_contexts)
+                sentences1.append(question)
+                sentences2.append(neg_snippet)
+                scores.append(0.0)
+
+    # 4) Save to a DataFrame
+    import pandas as pd
+    eval_df = pd.DataFrame({
+        "sentence1": sentences1,
+        "sentence2": sentences2,
+        "score": scores
+    })
+
+    # 5) Ensure directory exists & save
+    os.makedirs(os.path.dirname(cfg.EVAL_DATA_PATH), exist_ok=True)
+    eval_df.to_pickle(cfg.EVAL_DATA_PATH)
+    print(f"Saved evaluation data to {cfg.EVAL_DATA_PATH}")
+    
+    return eval_df
+
+
+def get_similarity_evaluator(cfg):
+    
+    """ Checks if the file exists in cfg.EVAL_DATA_PATH, loads it if it does, otherwise creates it using prepare_evaluation_data and returns as a HF dataset.
+    
+    """
+    
+    from sentence_transformers.evaluation import EmbeddingSimilarityEvaluator
+    
+    if os.path.exists(cfg.EVAL_DATA_PATH):
+        with open(cfg.EVAL_DATA_PATH, 'rb') as f:
+            eval_df = pickle.load(f)
+    else:
+        eval_df = prepare_evaluation_data(cfg)
+        
+    
+    evaluator = EmbeddingSimilarityEvaluator(
+        sentences1=eval_df['sentence1'].tolist(),
+        sentences2=eval_df['sentence2'].tolist(),
+        scores=eval_df['score'].tolist(),
+        name='PubMedQA Similarity Evaluation',
+        main_similarity='cosine'
+    )
+    
+    return evaluator
+    
+    
+    
+
+
 def build_mnr_dataset(train_df):
     """
     Creates a Hugging Face Dataset for MNR fine-tuning.

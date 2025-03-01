@@ -21,6 +21,7 @@ class Config:
     SAMPLE_SIZE = 2000  # how many records to sample
     TEST_SIZE = 1000
     TRAIN_SIZE = 2000
+    VAL_SIZE = 500
     
     # Embedding
     NORMALIZE = True     # whether to L2-normalize embeddings
@@ -44,6 +45,8 @@ class Config:
 
     TRAIN_SPLIT_PATH = os.path.join(RAW_DATA_DIR, "pubmedqa_train.pkl")
     TEST_SPLIT_PATH = os.path.join(RAW_DATA_DIR, "pubmedqa_test.pkl")
+    VAL_SPLIT_PATH = os.path.join(RAW_DATA_DIR, "pubmedqa_val.pkl")
     
     TEST_CONTEXTS_PATH = os.path.join(PROCESSED_DATA_DIR, "test_contexts.pkl")
     TEST_QUESTIONS_PATH = os.path.join(PROCESSED_DATA_DIR, "test_questions.pkl")
+    EVAL_DATA_PATH = os.path.join(PROCESSED_DATA_DIR, "eval_data.pkl")
