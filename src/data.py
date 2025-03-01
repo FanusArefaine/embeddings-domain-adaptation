@@ -8,6 +8,7 @@ from sentence_transformers import InputExample
 from src.config import Config
 import datasets
 import random
+from tqdm import tqdm
 
 sys.path.append('../')
 
@@ -381,7 +382,9 @@ def build_tsdae_dataset(cfg):
     
     if os.path.exists(cfg.TSDAE_TRAIN_PATH):
         with open(cfg.TSDAE_TRAIN_PATH, 'rb') as f:
-            return pickle.load(f)
+            tsdae_dataset = pickle.load(f)
+        print(f"Loaded TSDAE dataset from {cfg.TSDAE_TRAIN_PATH}")
+        return tsdae_dataset
         
     
     from sentence_transformers.datasets import DenoisingAutoEncoderDataset
@@ -408,7 +411,9 @@ def build_tsdae_dataset(cfg):
         "original_sentences": []
     }
     
-    for sentence in damaged_sentences:
+    print("Creating TSDAE training data...")
+    
+    for sentence in tqdm(damaged_sentences):
         dataset_dict["damaged_sentences"].append(sentence.texts[0])
         dataset_dict["original_sentences"].append(sentence.texts[1])
         
@@ -417,7 +422,8 @@ def build_tsdae_dataset(cfg):
     
     # save it in cfg.TSDAE_TRAIN_PATH
     os.makedirs(os.path.dirname(cfg.TSDAE_TRAIN_PATH), exist_ok=True)
-    tsdae_dataset.to_pickle(cfg.TSDAE_TRAIN_PATH)
+    with open(cfg.TSDAE_TRAIN_PATH, 'wb') as f:
+        pickle.dump(tsdae_dataset, f)
     print(f"Saved TSDAE training data to {cfg.TSDAE_TRAIN_PATH}")
     
     return tsdae_dataset
