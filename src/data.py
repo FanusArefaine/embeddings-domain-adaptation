@@ -432,3 +432,59 @@ def build_tsdae_dataset(cfg):
     print(f"Saved TSDAE training data to {cfg.TSDAE_TRAIN_PATH}")
     
     return tsdae_dataset
+
+
+
+def build_mlm_dataset(cfg):
+    """
+    Builds a Hugging Face Dataset of domain text for masked language modeling.
+    We do something simpler than TSDAE: just gather domain sentences, no corruption.
+    
+    1) If we have a pre-saved pickle (cfg.MLM_TRAIN_PATH), load it.
+    2) Otherwise, gather domain text from the same data as TSDAE or from your entire dataset.
+    3) Convert to a HF Dataset with a single 'text' column.
+    4) Save to disk for reuse.
+    """
+
+    if os.path.exists(cfg.MLM_TRAIN_PATH):
+        with open(cfg.MLM_TRAIN_PATH, 'rb') as f:
+            mlm_dataset = pickle.load(f)
+        print(f"Loaded MLM dataset from {cfg.MLM_TRAIN_PATH}")
+        return mlm_dataset
+
+    # 1) Load domain data
+    df = load_and_filter_data(cfg)  # or whichever data you want
+
+    # 2) Combine question + contexts into domain sentences
+    all_sentences = []
+    for _, row in df.iterrows():
+        question = row['question']
+        contexts = row['context']['contexts']
+        # you could do them separately or combine them
+        all_sentences.append(question)
+        for snippet in contexts:
+            all_sentences.append(snippet)
+    
+    # optionally shuffle and sample
+    random.seed(42)
+    random.shuffle(all_sentences)
+    all_sentences = list(set(all_sentences))  # remove duplicates
+    
+    # keep maybe up to 20k domain lines
+    max_lines = 20000
+    all_sentences = all_sentences[:max_lines]
+    print(f"Building MLM dataset with {len(all_sentences)} lines of text.")
+
+    # 3) Convert to an HF dataset with column "text"
+    dataset_dict = {
+        "text": all_sentences
+    }
+    mlm_dataset = datasets.Dataset.from_dict(dataset_dict)
+
+    # 4) Save for reuse
+    os.makedirs(os.path.dirname(cfg.MLM_TRAIN_PATH), exist_ok=True)
+    with open(cfg.MLM_TRAIN_PATH, 'wb') as f:
+        pickle.dump(mlm_dataset, f)
+    print(f"Saved MLM training data to {cfg.MLM_TRAIN_PATH}")
+
+    return mlm_dataset

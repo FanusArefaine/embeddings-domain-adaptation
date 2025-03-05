@@ -7,7 +7,7 @@ from sentence_transformers.trainer import SentenceTransformerTrainer
 from sentence_transformers.training_args import SentenceTransformerTrainingArguments
 
 from src.config import Config
-from src.data import build_mnr_dataset, load_training_data, get_similarity_evaluator
+from src.data import build_mnr_dataset, load_training_data, get_similarity_evaluator, build_mlm_dataset
 import torch
 from sentence_transformers.training_args import BatchSamplers
 
@@ -274,3 +274,99 @@ def tsdae_finetuning(cfg: Config):
     cls_pooled_model.save(cfg.MODELS_OUTPUT_DIR)
     print(f"TSDAE fine-tuning complete. Model saved to {cfg.MODELS_OUTPUT_DIR}")
     return cls_pooled_model
+
+
+# src/fine_tuning.py  (add this function)
+
+def mlm_finetuning(cfg):
+    """
+    Continues pretraining for masked language modeling on domain text.
+    1) Builds/loads domain text dataset (1 column: 'text').
+    2) Tokenizes with AutoTokenizer.
+    3) Uses DataCollatorForLanguageModeling for random masking.
+    4) Trains with Hugging Face Trainer on AutoModelForMaskedLM.
+    5) Saves final model to cfg.MODELS_OUTPUT_DIR.
+    
+    Return: the path to the saved model or the model object.
+    """
+    import os
+    import torch
+    from transformers import (
+        AutoTokenizer,
+        AutoModelForMaskedLM,
+        DataCollatorForLanguageModeling,
+        Trainer,
+        TrainingArguments
+    )
+    from src.data import build_mlm_dataset
+
+    # 1) Build domain dataset
+    mlm_dataset = build_mlm_dataset(cfg)
+    print(f"MLM Dataset columns: {mlm_dataset.column_names}, size={len(mlm_dataset)}")
+
+    # 2) Tokenize
+    tokenizer = AutoTokenizer.from_pretrained(cfg.MODEL_NAME)
+    
+    def tokenize_function(examples):
+        return tokenizer(examples["text"], truncation=True, max_length=512)
+    
+    tokenized_dataset = mlm_dataset.map(tokenize_function, batched=True, remove_columns=["text"])
+    tokenized_dataset.set_format("torch")  # so we get PyTorch Tensors
+
+    # We can split into 'train' / 'eval' if we want:
+    # For demonstration, let's do 90% train, 10% eval
+    split_dataset = tokenized_dataset.train_test_split(test_size=0.1, seed=42)
+    train_dataset = split_dataset["train"]
+    eval_dataset = split_dataset["test"]
+
+    print(f"Train set size: {len(train_dataset)}, Eval set size: {len(eval_dataset)}")
+
+    # 3) Create model
+    model = AutoModelForMaskedLM.from_pretrained(cfg.MODEL_NAME)
+    
+    # 4) DataCollator for MLM
+    data_collator = DataCollatorForLanguageModeling(
+        tokenizer=tokenizer, 
+        mlm=True, 
+        mlm_probability=0.15
+    )
+
+    # 5) Training args
+    training_args = TrainingArguments(
+        output_dir=cfg.MODELS_OUTPUT_DIR,
+        overwrite_output_dir=True,
+        num_train_epochs=cfg.EPOCHS,
+        per_device_train_batch_size=cfg.BATCH_SIZE,
+        per_device_eval_batch_size=cfg.BATCH_SIZE,
+        logging_steps=cfg.LOGGING_STEPS,
+        save_steps=0,  # or a certain step
+        evaluation_strategy="steps" if len(eval_dataset) > 0 else "no",
+        eval_steps=200,  # or any you prefer
+        warmup_steps=cfg.WARMUP_STEPS,
+        fp16=torch.cuda.is_available(),
+        dataloader_num_workers=2,
+        save_total_limit=1
+    )
+
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset if len(eval_dataset) > 0 else None,
+        data_collator=data_collator
+    )
+
+    # 6) Train
+    trainer.train()
+
+    # Evaluate final perplexity if you want:
+    if len(eval_dataset) > 0:
+        eval_results = trainer.evaluate()
+        print(f"Final eval results: {eval_results}")
+
+    # 7) Save model
+    trainer.save_model(cfg.MODELS_OUTPUT_DIR)
+    tokenizer.save_pretrained(cfg.MODELS_OUTPUT_DIR)
+    print(f"MLM continued pretraining complete. Model saved at {cfg.MODELS_OUTPUT_DIR}")
+
+    return model

@@ -9,7 +9,8 @@ from src.finetuning import (
     mnr_loss_finetuning,
     cosine_loss_finetuning,
     softmax_loss_finetuning,
-    tsdae_finetuning
+    tsdae_finetuning,
+    mlm_finetuning
 )
 from src.embedding import embed_texts
 from src.retrieval import build_faiss_index, search_top_k
@@ -45,8 +46,13 @@ def run_finetuning_experiment(cfg: Config, type: str = "mnr"):
         domain_finetuned_model = tsdae_finetuning(cfg)
         finetuned_model = mnr_loss_finetuning(cfg, domain_finetuned_model)
         loss_name = "TSDAE + MNR"
-        
-    
+    elif type == 'mlm':
+        finetuned_model = mlm_finetuning(cfg)
+        loss_name = "MLM"
+    elif type == 'mlm_plus':
+        domain_finetuned_model = mlm_finetuning(cfg)
+        finetuned_model = mnr_loss_finetuning(cfg, domain_finetuned_model)
+        loss_name = "MLM + MNR"
     else:
         raise ValueError(f"Unknown type: {type}")
 
