@@ -2,7 +2,7 @@
 
 import os
 import pickle
-from sentence_transformers import SentenceTransformer, losses
+from sentence_transformers import SentenceTransformer, losses, models
 from sentence_transformers.trainer import SentenceTransformerTrainer
 from sentence_transformers.training_args import SentenceTransformerTrainingArguments
 
@@ -276,6 +276,27 @@ def tsdae_finetuning(cfg: Config):
     return cls_pooled_model
 
 
+
+def create_st_model_from_mlm(mlm_model_path):
+    """
+    Creates a SentenceTransformer from a Hugging Face model directory
+    (the result of masked language modeling).
+    We do something like:
+      - transformer = models.Transformer(mlm_model_path)
+      - pooling = models.Pooling(...)
+      - st_model = SentenceTransformer([transformer, pooling])
+    """
+    transformer_model = models.Transformer(mlm_model_path, max_seq_length=512)
+    pooling_model = models.Pooling(
+        transformer_model.get_word_embedding_dimension(),
+        pooling_mode_cls_token=True
+    )
+    st_model = SentenceTransformer(
+        modules=[transformer_model, pooling_model]
+    )
+    return st_model
+
+
 # src/fine_tuning.py  (add this function)
 
 def mlm_finetuning(cfg):
@@ -368,5 +389,7 @@ def mlm_finetuning(cfg):
     trainer.save_model(cfg.MODELS_OUTPUT_DIR)
     tokenizer.save_pretrained(cfg.MODELS_OUTPUT_DIR)
     print(f"MLM continued pretraining complete. Model saved at {cfg.MODELS_OUTPUT_DIR}")
+    
+    model = create_st_model_from_mlm(cfg.MODELS_OUTPUT_DIR)
 
     return model

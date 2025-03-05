@@ -1,7 +1,9 @@
 # src/embedding.py
 
 import numpy as np
-from sentence_transformers import SentenceTransformer
+from transformers import AutoModelForMaskedLM, AutoTokenizer, TrainingArguments, Trainer
+from sentence_transformers import SentenceTransformer # Import SentenceTransformer
+from sentence_transformers import SentenceTransformer, models
 import faiss  # for normalization if needed
 
 def build_embedder(cfg):
@@ -11,7 +13,10 @@ def build_embedder(cfg):
     return SentenceTransformer(cfg.MODEL_NAME, device=cfg.DEVICE)
 
 
-def embed_texts(embedder, texts, do_normalize=False):
+
+
+
+def embed_texts(embedder, texts, do_normalize=False, model_type=None):
     """
     Embeds a list of texts (questions or context snippets) into vectors.
     Optionally normalizes them (L2) for cosine similarity.
